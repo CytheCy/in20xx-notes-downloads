@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>In20xx Notes — A tree-based notes taking app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@200;300;500&family=Roboto:wght@100;300;400&display=swap">
+<style>
+  :root {
+    --bg:          #f7f4ef;
+    --bg-yellow:   #f7f4df;
+    --bg-green:    #eef7e8;
+    --bg-blue:     #edf3fb;
+    --bg-red:      #faece8;
+    --text:        #161616;
+    --text-emp:    #333333;
+    --text-mute:   #535353;
+    --text-faint:  #b1b1b1;
+    --line:        #e5e5e5;
+    --inverse:     #ffffff;
+    --ease-quiet:    cubic-bezier(.22, 1, .36, 1);
+    --ease-precise:  cubic-bezier(.4, 0, .2, 1);
+    --ease-emphasis: cubic-bezier(.16, 1, .3, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    background-color: var(--bg-yellow);
+    animation: bg-cycle 60s ease-in-out infinite;
+    color: var(--text);
+    font-family: 'Roboto', sans-serif;
+    font-weight: 300;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  @keyframes bg-cycle {
+    0%, 100% { background-color: var(--bg-yellow); }
+    25%      { background-color: var(--bg-green); }
+    50%      { background-color: var(--bg-blue); }
+    75%      { background-color: var(--bg-red); }
+  }
+
+  body {
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  @media (pointer: coarse) {
+    body { cursor: auto; }
+    .cursor-dot, .cursor-ring { display: none !important; }
+  }
+
+  a { color: inherit; text-decoration: none; }
+  img { display: block; max-width: 100%; }
+  button { font: inherit; background: none; border: none; cursor: none; color: inherit; }
+
+  /* ---------- noise overlay ---------- */
+  .noise-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.6'/></svg>");
+    animation: noise 22s linear infinite;
+  }
+  @keyframes noise {
+    0%,100% { transform: translate(0,0); }
+    20%     { transform: translate(-10%, 5%); }
+    50%     { transform: translate(-5%, -8%); }
+    80%     { transform: translate(-15%, 0); }
+  }
+
+  /* ---------- cursor ---------- */
+  .cursor-dot, .cursor-ring {
+    position: fixed; top: 0; left: 0; pointer-events: none; z-index: 10000;
+    mix-blend-mode: difference; opacity: 0;
+    transition: opacity .25s ease-out; will-change: transform;
+  }
+  .cursor-dot  { width: 6px; height: 6px; background: #ffffff; border-radius: 50%; }
+  .cursor-ring {
+    width: 32px; height: 32px; border: 1px solid #ffffff; border-radius: 50%;
+    transition: opacity .25s ease-out;
+  }
+  .cursor-dot.is-visible, .cursor-ring.is-visible { opacity: 1; }
+
+  /* ---------- nav ---------- */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.75rem 2rem;
+    font-family: 'Roboto', sans-serif; font-weight: 400;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-emp);
+    mix-blend-mode: difference;
+    filter: invert(1);
+  }
+  .nav__brand { display: flex; align-items: baseline; gap: 0.6rem; }
+  .nav__brand .mark {
+    font-family: 'Oswald', sans-serif; font-weight: 500;
+    font-size: 14px; letter-spacing: 0.18em;
+  }
+  .nav__brand .meta { color: var(--text-faint); font-size: 10px; }
+  .nav__links { display: flex; gap: 2.5rem; }
+  .nav__links a { position: relative; }
+  .nav__links a::after {
+    content: ''; position: absolute; left: 0; bottom: -4px;
+    width: 0; height: 1px; background: currentColor;
+    transition: width .5s var(--ease-quiet);
+  }
+  .nav__links a:hover::after { width: 100%; }
+  @media (max-width: 720px) {
+    .nav__links { display: none; }
+  }
+
+  /* ---------- hero ---------- */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    padding: 9rem 2rem 6rem;
+    display: flex; flex-direction: column; justify-content: center;
+    max-width: 1400px; margin: 0 auto;
+  }
+  .hero__eyebrow {
+    font-family: 'Roboto', sans-serif; font-weight: 400;
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--text-mute);
+    margin-bottom: 5rem;
+    display: flex; align-items: center; gap: 1rem;
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 1s var(--ease-quiet), transform 1s var(--ease-quiet);
+    transition-delay: 200ms;
+  }
+  .hero__eyebrow.is-in { opacity: 1; transform: none; }
+  .hero__eyebrow .rule {
+    display: inline-block; width: 3rem; height: 1px; background: var(--text-mute);
+  }
+
+  .hero__title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 200;
+    font-size: clamp(3.2rem, 9.5vw, 11rem);
+    line-height: 1.06;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 3rem;
+  }
+  .line-mask { overflow: hidden; display: block; }
+  .hero__title .line-mask:last-child {
+    padding-bottom: 0.18em;
+  }
+  .line-mask .line {
+    display: block;
+    transform: translateY(110%);
+    will-change: transform;
+  }
+  .line-mask .line.italic {
+    font-style: italic;
+    font-weight: 200;
+    color: var(--text-emp);
+  }
+
+  .hero__sub {
+    max-width: 38rem;
+    font-size: 1.125rem;
+    line-height: 1.55;
+    color: var(--text-emp);
+    font-weight: 300;
+    margin-top: 3.5rem;
+    margin-bottom: 4rem;
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 1.2s var(--ease-quiet), transform 1.2s var(--ease-quiet);
+    transition-delay: 900ms;
+  }
+  .hero__sub.is-in { opacity: 1; transform: none; }
+  .hero__sub p { margin: 0; }
+  .hero__sub p + p { margin-top: 1em; }
+
+  .hero__meta {
+    display: flex; gap: 4rem;
+    border-top: 1px solid var(--line);
+    padding-top: 2rem;
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 1.2s var(--ease-quiet), transform 1.2s var(--ease-quiet);
+    transition-delay: 1200ms;
+  }
+  .hero__meta.is-in { opacity: 1; transform: none; }
+  .hero__meta-item .label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: 0.5rem;
+  }
+  .hero__meta-item .value {
+    font-family: 'Oswald', sans-serif; font-weight: 300;
+    font-size: 1.5rem; color: var(--text);
+  }
+  @media (max-width: 720px) {
+    .hero__meta { flex-wrap: wrap; gap: 2rem; }
+  }
+
+  .hero__scroll {
+    position: absolute; bottom: 2rem; left: 2rem;
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-faint);
+    display: flex; align-items: center; gap: 0.75rem;
+    opacity: 0;
+    transition: opacity 1s var(--ease-quiet);
+    transition-delay: 1600ms;
+  }
+  .hero__scroll.is-in { opacity: 1; }
+  .hero__scroll .arrow {
+    display: inline-block; width: 1.5rem; height: 1px;
+    background: var(--text-faint);
+    position: relative;
+  }
+  .hero__scroll .arrow::after {
+    content: ''; position: absolute; right: 0; top: -3px;
+    width: 7px; height: 7px;
+    border-right: 1px solid var(--text-faint);
+    border-bottom: 1px solid var(--text-faint);
+    transform: rotate(-45deg);
+  }
+
+  /* ---------- manifesto ---------- */
+  .manifesto {
+    position: relative;
+    padding: 10rem 2rem;
+    max-width: 1400px; margin: 0 auto;
+    overflow: hidden;
+  }
+  .manifesto__watermark {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: 22vw; line-height: 1;
+    color: var(--text);
+    opacity: 0.04;
+    pointer-events: none;
+    letter-spacing: -0.04em;
+    white-space: nowrap;
+    z-index: 0;
+  }
+  .manifesto__inner {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 1fr 2fr;
+    gap: 6rem;
+    max-width: 1100px; margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .manifesto__inner { grid-template-columns: 1fr; gap: 3rem; }
+  }
+  .manifesto__label {
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--text-mute);
+    padding-top: 0.5rem;
+  }
+  .manifesto__body {
+    font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    line-height: 1.35;
+    color: var(--text);
+    letter-spacing: -0.005em;
+  }
+  .manifesto__body em {
+    font-style: italic; color: var(--text-emp);
+  }
+  .manifesto__body .reveal {
+    display: block;
+    opacity: 0; transform: translateY(40px);
+    transition: opacity 1.2s var(--ease-emphasis), transform 1.2s var(--ease-emphasis);
+  }
+  .manifesto__body .reveal.is-in { opacity: 1; transform: none; }
+  .manifesto__body .reveal + .reveal { margin-top: 0.85em; }
+  .manifesto__body .reveal:nth-child(2) { transition-delay: 150ms; }
+
+  /* ---------- sections ---------- */
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 6rem;
+    flex-wrap: wrap; gap: 2rem;
+  }
+  .section-head__label {
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--text-mute);
+  }
+  .section-head__title {
+    font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: clamp(2rem, 4vw, 3.4rem);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  /* ---------- screenshots ---------- */
+  .screens {
+    padding: 8rem 2rem;
+    max-width: 1600px; margin: 0 auto;
+    border-top: 1px solid var(--line);
+  }
+  .screen-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6rem;
+    align-items: center;
+    margin-bottom: 8rem;
+  }
+  .screen-row:last-child { margin-bottom: 0; }
+  .screen-row:nth-child(even) .screen-row__media { order: 2; }
+  .screen-row:nth-child(even) .screen-row__text { order: 1; }
+  @media (max-width: 900px) {
+    .screen-row { grid-template-columns: 1fr; gap: 2rem; margin-bottom: 5rem; }
+    .screen-row:nth-child(even) .screen-row__media { order: 1; }
+    .screen-row:nth-child(even) .screen-row__text { order: 2; }
+  }
+
+  .screen-row__media {
+    position: relative;
+    overflow: hidden;
+    background: #1a1a1a;
+    aspect-ratio: 16 / 10;
+    opacity: 0; transform: scale(1.04) translateY(40px);
+    transition: opacity 1.3s var(--ease-quiet), transform 1.3s var(--ease-quiet);
+    transition-delay: var(--row-delay, 0ms);
+  }
+  .screen-row__media.is-in { opacity: 1; transform: none; }
+  .screen-row__media img {
+    width: 100%; height: 100%; object-fit: cover;
+    filter: grayscale(15%) contrast(0.96) brightness(0.95);
+  }
+  .screen-row__media::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(247,244,239,0) 60%, rgba(247,244,239,0.18) 100%);
+    pointer-events: none;
+  }
+  .screen-row__text {
+    opacity: 0; transform: translateY(40px);
+    transition: opacity 1.1s var(--ease-quiet), transform 1.1s var(--ease-quiet);
+    transition-delay: var(--row-delay, 0ms);
+  }
+  .screen-row__text.is-in { opacity: 1; transform: none; }
+  .screen-row__num {
+    font-family: 'Oswald', sans-serif; font-weight: 300;
+    font-size: 1rem;
+    color: var(--text-faint);
+    letter-spacing: 0.18em;
+    margin-bottom: 1.5rem;
+  }
+  .screen-row__title {
+    font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+    line-height: 1.1;
+    letter-spacing: -0.005em;
+    color: var(--text);
+    margin-bottom: 1.5rem;
+  }
+  .screen-row__desc {
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--text-mute);
+    max-width: 28rem;
+    margin-bottom: 1.5rem;
+  }
+  .screen-row__meta {
+    display: flex; gap: 1.5rem;
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-faint);
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    max-width: 28rem;
+  }
+  .screen-row__meta span { flex: 1; }
+
+  /* ---------- quote ---------- */
+  .quote {
+    padding: 10rem 2rem;
+    max-width: 1100px; margin: 0 auto;
+    border-top: 1px solid var(--line);
+    text-align: left;
+  }
+  .quote__body {
+    font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: clamp(1.8rem, 3.6vw, 3rem);
+    line-height: 1.25;
+    color: var(--text);
+    letter-spacing: -0.005em;
+    max-width: 28ch;
+    margin-bottom: 3rem;
+  }
+  .quote__body em { font-style: italic; color: var(--text-emp); }
+  .quote__attrib {
+    display: flex; gap: 2rem; align-items: baseline;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-mute);
+  }
+  .quote__attrib .name { color: var(--text); }
+  .quote__attrib .rule {
+    flex: 1; height: 1px; background: var(--line); max-width: 6rem;
+  }
+
+  /* ---------- download ---------- */
+  .download {
+    padding: 10rem 2rem;
+    max-width: 1400px; margin: 0 auto;
+    border-top: 1px solid var(--line);
+  }
+  .download__head {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    margin-bottom: 6rem;
+    align-items: end;
+  }
+  @media (max-width: 900px) {
+    .download__head { grid-template-columns: 1fr; gap: 2rem; }
+  }
+  .download__title {
+    font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .download__title em { font-style: italic; color: var(--text-emp); }
+  .download__intro {
+    font-size: 1rem; line-height: 1.65;
+    color: var(--text-mute);
+    max-width: 28rem;
+  }
+
+  .download__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  @media (max-width: 900px) {
+    .download__grid { grid-template-columns: 1fr; }
+  }
+  .download__card {
+    background: var(--bg);
+    padding: 3.5rem 2rem;
+    display: flex; flex-direction: column;
+    gap: 1.5rem;
+    transition: background 0.5s var(--ease-quiet);
+    position: relative;
+  }
+  .download__card:hover { background: #efeae1; }
+  .download__platform-label {
+    font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .download__platform-name {
+    font-family: 'Oswald', sans-serif; font-weight: 300;
+    font-size: 2.5rem;
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: -0.005em;
+  }
+  .download__platform-meta {
+    font-size: 0.875rem;
+    color: var(--text-mute);
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+  .download__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: auto;
+  }
+  .download__btn {
+    display: inline-flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--text);
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text);
+    transition: background 0.4s var(--ease-quiet), color 0.4s var(--ease-quiet);
+    position: relative;
+    overflow: hidden;
+  }
+  .download__btn[aria-disabled="true"] {
+    border-color: var(--line);
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+  .download__btn:hover { background: var(--text); color: var(--bg); }
+  .download__btn .size {
+    color: var(--text-faint);
+    font-size: 10px;
+  }
+  .download__btn:hover .size { color: var(--bg); opacity: 0.6; }
+  .download__btn .checksum {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--text-faint);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    text-transform: none;
+  }
+  .download__btn:hover .checksum { color: var(--bg); opacity: 0.6; }
+  .download__btn .arrow {
+    display: inline-block; width: 1rem; height: 1px;
+    background: currentColor; position: relative;
+    margin-left: 1rem;
+  }
+  .download__btn .arrow::after {
+    content: ''; position: absolute; right: 0; top: -3px;
+    width: 6px; height: 6px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(-45deg);
+  }
+
+  .download__notes {
+    margin-top: 4rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3rem;
+  }
+  @media (max-width: 900px) {
+    .download__notes { grid-template-columns: 1fr; gap: 1.5rem; }
+  }
+  .download__note {
+    font-size: 0.875rem;
+    color: var(--text-mute);
+    line-height: 1.6;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+  .download__note .label {
+    display: block;
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 0.5rem;
+  }
+
+  /* ---------- footer ---------- */
+  .footer {
+    padding: 4rem 2rem 3rem;
+    max-width: 1400px; margin: 0 auto;
+    border-top: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3rem;
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .footer { grid-template-columns: 1fr; gap: 2rem; }
+  }
+  .footer__brand {
+    font-family: 'Oswald', sans-serif; font-weight: 300;
+    font-size: 1.25rem; letter-spacing: 0.05em;
+    color: var(--text);
+  }
+  .footer__brand .meta {
+    display: block;
+    font-family: 'Roboto', sans-serif; font-weight: 300;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-faint);
+    margin-top: 0.5rem;
+  }
+  .footer__links {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-mute);
+  }
+  .footer__links a { transition: color 0.3s var(--ease-quiet); }
+  .footer__links a:hover { color: var(--text); }
+  .footer__colophon {
+    font-size: 11px;
+    color: var(--text-faint);
+    line-height: 1.6;
+    text-align: right;
+  }
+  @media (max-width: 720px) {
+    .footer__colophon { text-align: left; }
+  }
+
+  /* ---------- reduced motion ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    .noise-overlay { animation: none; }
+    .line-mask .line { transform: none !important; }
+    .hero__sub, .hero__eyebrow, .hero__meta, .hero__scroll,
+    .screen-row__media, .screen-row__text, .manifesto__body .reveal {
+      opacity: 1 !important; transform: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- noise paper texture -->
+  <div class="noise-overlay" aria-hidden="true"></div>
+
+  <!-- custom cursor -->
+  <div class="cursor-dot" aria-hidden="true"></div>
+  <div class="cursor-ring" aria-hidden="true"></div>
+
+  <!-- navigation -->
+  <nav class="nav">
+    <div class="nav__brand">
+      <span class="mark">IN20XX NOTES</span>
+      <span class="meta">— always free</span>
+    </div>
+    <div class="nav__links">
+      <a href="#appearance">Screenshots</a>
+      <a href="#download">Download</a>
+    </div>
+  </nav>
+
+  <!-- hero -->
+  <header class="hero">
+    <div class="hero__eyebrow" data-reveal>
+      <span class="rule"></span>
+      <span>Beautiful, minimal, focused</span>
+    </div>
+
+    <h1 class="hero__title">
+      <span class="line-mask"><span class="line" data-line>A notes app designed</span></span>
+      <span class="line-mask"><span class="line italic" data-line>by writers, for writers.</span></span>
+    </h1>
+
+    <div class="hero__sub" data-reveal>
+      <p>In20xx Notes is for people who write a lot of notes. Organize notes with limitless notebooks, note nesting, and titled note blocks within notes. Everything you need is a click away and yet buttons and ribbons never appear over your writing. Persistent scratchpad, side-by-side notes, color icons, and one-click copy are some of the features that help your note taking flow.</p>
+    </div>
+
+    <div class="hero__meta" data-reveal>
+      <div class="hero__meta-item">
+        <div class="label">Format</div>
+        <div class="value">Rich text</div>
+      </div>
+      <div class="hero__meta-item">
+        <div class="label">Structure</div>
+        <div class="value">Infinite nesting</div>
+      </div>
+      <div class="hero__meta-item">
+        <div class="label">Storage</div>
+        <div class="value">Your choice</div>
+      </div>
+      <div class="hero__meta-item">
+        <div class="label">Size</div>
+        <div class="value">11 MB</div>
+      </div>
+    </div>
+
+    <div class="hero__scroll" data-reveal>
+      <span>Scroll</span>
+      <span class="arrow"></span>
+    </div>
+  </header>
+
+  <!-- manifesto -->
+  <section class="manifesto">
+    <div class="manifesto__watermark" aria-hidden="true">IN20XX NOTES</div>
+    <div class="manifesto__inner">
+      <div class="manifesto__label">01 — Position</div>
+      <div class="manifesto__body">
+        <span class="reveal" data-reveal>This program wants to do one thing and one thing well, empower your idea catching and information handling.</span>
+        <span class="reveal" data-reveal>It won’t ask you to log in, won’t give you plan limits, and won’t run slow.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- screenshots -->
+  <section class="screens" id="appearance">
+    <div class="section-head">
+      <div class="section-head__label">02 — Appearance</div>
+      <h2 class="section-head__title">Screenshots</h2>
+    </div>
+
+    <div class="screen-row" data-row data-row-delay="0">
+      <div class="screen-row__media">
+        <img src="pic1.png" alt="In20xx Notes writing view with folder tree on the left and the editor in the main pane">
+      </div>
+      <div class="screen-row__text">
+        <div class="screen-row__num">View 01</div>
+        <h3 class="screen-row__title">Clean Layout</h3>
+        <p class="screen-row__desc">Notebook name at the top left. Drag and drop to rearrange notes on the tree. Expand or collapse nested notes with a single click. Open multiple tabbed notes. Options stay out of sight until you need them.</p>
+        <div class="screen-row__meta">
+          <span>Tree · left</span>
+          <span>Editor · center</span>
+          <span>Workspace · clean</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-row" data-row data-row-delay="120">
+      <div class="screen-row__media">
+        <img src="pic2.png" alt="In20xx Notes with the notebook menu open and a table of contents panel on the right">
+      </div>
+      <div class="screen-row__text">
+        <div class="screen-row__num">View 02</div>
+        <h3 class="screen-row__title">Notebooks and Table of Contents</h3>
+        <p class="screen-row__desc">Switch between notebooks using the left menu. A table of contents for the active note displays on the right. Drag and drop within the table to reorder note sections. Headings and titled note blocks automatically generate the table.</p>
+        <div class="screen-row__meta">
+          <span>Notebooks · left</span>
+          <span>Editor · center</span>
+          <span>Contents · right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-row" data-row data-row-delay="240">
+      <div class="screen-row__media">
+        <img src="pic3.png" alt="In20xx Notes with the scratchpad panel open and a folder icon and color picker displayed">
+      </div>
+      <div class="screen-row__text">
+        <div class="screen-row__num">View 03</div>
+        <h3 class="screen-row__title">Colored Icons and Scratchpad</h3>
+        <p class="screen-row__desc">Pick an icon and its color for each note. The persistent scratchpad with pages opens on the right. Idea dump, sketch draft, park fragments, and capture questions.</p>
+        <div class="screen-row__meta">
+          <span>Icon picker · left</span>
+          <span>Show · hide</span>
+          <span>Scratchpad · right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-row" data-row data-row-delay="360">
+      <div class="screen-row__media">
+        <img src="pic4.png" alt="In20xx Notes with two notes open side by side, one dimmed writing note and one active publish note">
+      </div>
+      <div class="screen-row__text">
+        <div class="screen-row__num">View 04</div>
+        <h3 class="screen-row__title">Side by Side Notes</h3>
+        <p class="screen-row__desc">With double tabbed note windows, move info between notes, follow an outline, or compare two notes.</p>
+        <div class="screen-row__meta">
+          <span>Tree · left</span>
+          <span>Main note · middle</span>
+          <span>Reference · right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-row" data-row data-row-delay="480">
+      <div class="screen-row__media">
+        <img src="pic5.png" alt="In20xx Notes publish note showing the slash command menu and titled note blocks">
+      </div>
+      <div class="screen-row__text">
+        <div class="screen-row__num">View 05</div>
+        <h3 class="screen-row__title">Block tools when you need them.</h3>
+        <p class="screen-row__desc">Type a slash to bring up common blocks: regular text, titled notes, lists, tables, code, headings, and dividers. The editor stays plain until you ask it to become structured.</p>
+        <div class="screen-row__meta">
+          <span>Slash menu · inline</span>
+          <span>Blocks · fast</span>
+          <span>Notes · grouped</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen-row" data-row data-row-delay="600">
+      <div class="screen-row__media">
+        <img src="pic6.png" alt="In20xx Notes publish note with a selected titled note block and formatting toolbar at the bottom">
+      </div>
+      <div class="screen-row__text">
+        <div class="screen-row__num">View 06</div>
+        <h3 class="screen-row__title">Edit the block, not the chrome.</h3>
+        <p class="screen-row__desc">When a block is active, the controls move to the edge of the workspace. Formatting, alignment, lists, and block type changes stay available without crowding the page.</p>
+        <div class="screen-row__meta">
+          <span>Selection · clear</span>
+          <span>Toolbar · bottom</span>
+          <span>Editing · focused</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- quote -->
+  <section class="quote">
+    <blockquote class="quote__body" data-reveal>
+      "I wanted somewhere to put words without the software <em>performing</em> the act of putting words somewhere. In20xx Notes is the closest I've come."
+    </blockquote>
+    <div class="quote__attrib" data-reveal>
+      <span class="name">M. Voss</span>
+      <span class="rule"></span>
+      <span>Novelist · 14 years of notes</span>
+    </div>
+  </section>
+
+  <!-- download -->
+  <section class="download" id="download" data-github-repo="CytheCy/in20xx-notes-downloads">
+    <div class="download__head">
+      <h2 class="download__title">Get In20xx Notes. <em>It's free.</em></h2>
+      <p class="download__intro" aria-live="polite">
+        <span data-release-summary>Checking GitHub for the latest release…</span>
+        No installer telemetry, no account required. Pick your platform and the file lands directly.
+      </p>
+    </div>
+
+    <div class="download__grid">
+      <div class="download__card" data-platform="windows">
+        <div class="download__platform-label">01 — For</div>
+        <div class="download__platform-name">Windows</div>
+        <div class="download__platform-meta">Windows 10 or later · 64-bit installer</div>
+        <div class="download__actions" data-downloads="windows">
+          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.exe" download>
+            <span>Download .exe</span>
+            <span class="arrow"></span>
+          </a>
+        </div>
+      </div>
+      <div class="download__card" data-platform="macos">
+        <div class="download__platform-label">02 — For</div>
+        <div class="download__platform-name">macOS</div>
+        <div class="download__platform-meta">macOS 12 Monterey or later · Intel or Apple silicon</div>
+        <div class="download__actions" data-downloads="macos">
+          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.zip" download>
+            <span>Download X64</span>
+            <span class="arrow"></span>
+          </a>
+          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-arm64.zip" download>
+            <span>Download Arm64</span>
+            <span class="arrow"></span>
+          </a>
+        </div>
+      </div>
+      <div class="download__card" data-platform="linux">
+        <div class="download__platform-label">03 — For</div>
+        <div class="download__platform-name">Linux</div>
+        <div class="download__platform-meta">64-bit · AppImage, Debian/Ubuntu, or Fedora/RHEL</div>
+        <div class="download__actions" data-downloads="linux">
+          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-amd64.deb" download>
+            <span>Download .deb</span>
+            <span class="arrow"></span>
+          </a>
+          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.rpm" download>
+            <span>Download .rpm</span>
+            <span class="arrow"></span>
+          </a>
+          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.appimage" download>
+            <span>Download AppImage</span>
+            <span class="arrow"></span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="download__notes">
+      <div class="download__note">
+        <span class="label">No account</span>
+        In20xx Notes never asks you to sign in. There is nothing to sign in to.
+      </div>
+      <div class="download__note">
+        <span class="label">No telemetry</span>
+        The app does not phone home. Nothing about your writing leaves your machine.
+      </div>
+      <div class="download__note">
+        <span class="label">Open source</span>
+        Source available under the MIT licence. Build it yourself, if you prefer.
+      </div>
+    </div>
+  </section>
+
+  <!-- footer -->
+  <footer class="footer">
+    <div class="footer__brand">
+      In20xx Notes
+      <span class="meta">A quiet place for notes</span>
+    </div>
+    <div class="footer__links">
+      <a href="#">Documentation</a>
+      <a href="https://github.com/CytheCy/In20xx_Notes/releases/latest">Changelog</a>
+      <a href="https://github.com/CytheCy/In20xx_Notes">Source code</a>
+      <a href="#">Contact</a>
+    </div>
+    <div class="footer__colophon">
+      Set in Oswald and Roboto.<br>
+      Built for people who write.<br>
+      © 2026 — plain text, plain files.
+    </div>
+  </footer>
+
+<script>
+  // ---------- custom cursor ----------
+  (function() {
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+    const dot = document.querySelector('.cursor-dot');
+    const ring = document.querySelector('.cursor-ring');
+    const ringSize = 32;
+    let mx = 0, my = 0;
+    let lastX = 0, lastY = 0, lastTime = performance.now();
+    let speedScale = 1, targetSpeedScale = 1, hoverScale = 1;
+    let hasPointer = false;
+
+    window.addEventListener('mousemove', (e) => {
+      const now = performance.now();
+      mx = e.clientX; my = e.clientY;
+
+      if (hasPointer) {
+        const distance = Math.hypot(mx - lastX, my - lastY);
+        const elapsed = Math.max(now - lastTime, 16);
+        const velocity = distance / elapsed;
+        targetSpeedScale = 1 + Math.min(velocity * 0.28, 1.1);
+      }
+
+      lastX = mx; lastY = my; lastTime = now; hasPointer = true;
+      dot.classList.add('is-visible');
+      ring.classList.add('is-visible');
+      dot.style.transform = `translate(${mx - 3}px, ${my - 3}px)`;
+      ring.style.transform = `translate(${mx - ringSize / 2}px, ${my - ringSize / 2}px) scale(${Math.max(speedScale, hoverScale)})`;
+    });
+
+    window.addEventListener('mouseleave', () => {
+      dot.classList.remove('is-visible');
+      ring.classList.remove('is-visible');
+      hasPointer = false;
+      targetSpeedScale = 1;
+    });
+
+    function tick() {
+      targetSpeedScale += (1 - targetSpeedScale) * 0.08;
+      speedScale += (targetSpeedScale - speedScale) * 0.2;
+      ring.style.transform = `translate(${mx - ringSize / 2}px, ${my - ringSize / 2}px) scale(${Math.max(speedScale, hoverScale)})`;
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    document.querySelectorAll('a, button, .download__card').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        hoverScale = 60 / ringSize;
+      });
+      el.addEventListener('mouseleave', () => {
+        hoverScale = 1;
+      });
+    });
+  })();
+
+  // ---------- reveal observer ----------
+  (function() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const targets = document.querySelectorAll('[data-reveal], .screen-row__media, .screen-row__text, .manifesto__body .reveal');
+
+    if (reduce) {
+      targets.forEach(t => t.classList.add('is-in'));
+      return;
+    }
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-in');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+    targets.forEach(t => io.observe(t));
+  })();
+
+  // ---------- hero line-mask rise ----------
+  (function() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const lines = document.querySelectorAll('[data-line]');
+
+    if (reduce) {
+      lines.forEach(l => l.style.transform = 'translateY(0)');
+      return;
+    }
+
+    // staggered rise after a short beat
+    lines.forEach((line, i) => {
+      line.style.transition = `transform 1.15s cubic-bezier(.22,1,.36,1) ${300 + i * 140}ms`;
+    });
+
+    requestAnimationFrame(() => {
+      lines.forEach(line => {
+        line.style.transform = 'translateY(0)';
+      });
+    });
+  })();
+
+  // ---------- screenshot row stagger ----------
+  (function() {
+    const rows = document.querySelectorAll('[data-row]');
+    rows.forEach(row => {
+      const delay = row.getAttribute('data-row-delay') || 0;
+      const media = row.querySelector('.screen-row__media');
+      const text = row.querySelector('.screen-row__text');
+      if (media) media.style.setProperty('--row-delay', delay + 'ms');
+      if (text) text.style.setProperty('--row-delay', delay + 'ms');
+    });
+  })();
+
+  // ---------- latest GitHub release downloads ----------
+  (function() {
+    const section = document.querySelector('[data-github-repo]');
+    if (!section) return;
+
+    const repository = section.dataset.githubRepo;
+    const releasePage = `https://github.com/${repository}/releases/latest`;
+    const summary = section.querySelector('[data-release-summary]');
+    const groups = {
+      windows: section.querySelector('[data-downloads="windows"]'),
+      macos: section.querySelector('[data-downloads="macos"]'),
+      linux: section.querySelector('[data-downloads="linux"]')
+    };
+
+    const definitions = [
+      {
+        platform: 'windows',
+        extension: '.exe',
+        preferredName: 'In20xx-Notes-1.0.0-x64.exe',
+        label: 'Download .exe',
+        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.exe'
+      },
+      {
+        platform: 'macos',
+        extension: '.zip',
+        preferredName: 'In20xx-Notes-1.0.0-x64.zip',
+        arch: 'x64',
+        label: 'Download X64',
+        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.zip'
+      },
+      {
+        platform: 'macos',
+        extension: '.zip',
+        preferredName: 'In20xx-Notes-1.0.0-arm64.zip',
+        arch: 'arm64',
+        label: 'Download Arm64',
+        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-arm64.zip'
+      },
+      {
+        platform: 'linux',
+        extension: '.deb',
+        preferredName: 'In20xx-Notes-1.0.0-amd64.deb',
+        label: 'Download .deb',
+        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-amd64.deb'
+      },
+      {
+        platform: 'linux',
+        extension: '.rpm',
+        preferredName: 'In20xx-Notes-1.0.0-x86_64.rpm',
+        label: 'Download .rpm',
+        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.rpm'
+      },
+      {
+        platform: 'linux',
+        extension: '.appimage',
+        preferredName: 'In20xx-Notes-1.0.0-x86_64.appimage',
+        label: 'Download AppImage',
+        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.appimage'
+      }
+    ];
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      const value = bytes / Math.pow(1024, unit);
+      return `${value >= 10 || unit === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
+    }
+
+    function formatDate(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }).format(date);
+    }
+
+    function architecture(name) {
+      const lower = name.toLowerCase();
+      if (/(^|[-_.])(arm64|aarch64)([-_.]|$)/.test(lower)) return 'arm64';
+      if (/(^|[-_.])(x64|x86_64|amd64)([-_.]|$)/.test(lower)) return 'x64';
+      return '';
+    }
+
+    function findAsset(assets, definition) {
+      const candidates = assets.filter(asset => {
+        const name = asset.name.toLowerCase();
+        const extensions = definition.extensions || [definition.extension];
+        if (!extensions.some(extension => name.endsWith(extension))) return false;
+        return !definition.arch || architecture(name) === definition.arch;
+      });
+      candidates.sort((a, b) => {
+        const extensions = definition.extensions || [definition.extension];
+        return extensions.findIndex(extension => a.name.toLowerCase().endsWith(extension)) -
+          extensions.findIndex(extension => b.name.toLowerCase().endsWith(extension));
+      });
+      if (!definition.preferredName) return candidates[0];
+      return candidates.find(asset => asset.name === definition.preferredName) || candidates[0];
+    }
+
+    function makeButton(asset, label, href) {
+      const link = document.createElement('a');
+      const text = document.createElement('span');
+      const size = document.createElement('span');
+      const arrow = document.createElement('span');
+
+      link.className = 'download__btn';
+      link.href = href || asset.browser_download_url;
+      link.setAttribute('download', '');
+      if (asset) link.setAttribute('aria-label', `${label}, ${asset.name}`);
+      text.textContent = label;
+      size.className = 'size';
+      size.textContent = asset ? ` · ${formatBytes(asset.size)}` : '';
+      arrow.className = 'arrow';
+      if (size.textContent) text.appendChild(size);
+      link.append(text, arrow);
+      return link;
+    }
+
+    function showFallback(message) {
+      summary.textContent = message;
+      Object.values(groups).forEach(group => group.replaceChildren());
+      definitions.forEach(definition => {
+        groups[definition.platform].appendChild(
+          makeButton(null, definition.label, definition.fallbackHref)
+        );
+      });
+    }
+
+    async function loadRelease() {
+      try {
+        const response = await fetch(`https://api.github.com/repos/${repository}/releases/latest`, {
+          headers: { Accept: 'application/vnd.github+json' }
+        });
+        if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+
+        const release = await response.json();
+        const assets = Array.isArray(release.assets) ? release.assets : [];
+        Object.values(groups).forEach(group => group.replaceChildren());
+
+        definitions.forEach(definition => {
+          const asset = findAsset(assets, definition);
+          if (asset) groups[definition.platform].appendChild(makeButton(asset, definition.label));
+        });
+
+        Object.entries(groups).forEach(([platform, group]) => {
+          if (group.children.length) return;
+          const link = document.createElement('a');
+          link.className = 'download__btn';
+          link.href = release.html_url || releasePage;
+          link.innerHTML = `<span>View ${platform === 'macos' ? 'macOS' : platform} files</span><span class="arrow"></span>`;
+          group.appendChild(link);
+        });
+
+        const version = release.tag_name ? release.tag_name.replace(/^v/i, '') : 'latest';
+        const date = formatDate(release.published_at || release.created_at);
+        summary.textContent = `Version ${version}${date ? `, released ${date}` : ''}. `;
+      } catch (error) {
+        showFallback('The latest installers are available directly below. ');
+        console.warn('Unable to load the latest GitHub release:', error);
+      }
+    }
+
+    loadRelease();
+  })();
+
+  // ---------- nav hide on scroll down, show on scroll up ----------
+  (function() {
+    const nav = document.querySelector('.nav');
+    let lastY = window.scrollY;
+    let ticking = false;
+
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const y = window.scrollY;
+          if (y > 120 && y > lastY) {
+            nav.style.transform = 'translateY(-100%)';
+            nav.style.transition = 'transform 0.5s cubic-bezier(.22,1,.36,1)';
+          } else {
+            nav.style.transform = 'translateY(0)';
+          }
+          lastY = y;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }, { passive: true });
+  })();
+</script>
+</body>
+</html>
