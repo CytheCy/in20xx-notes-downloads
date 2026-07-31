@@ -443,30 +443,46 @@
     const dot = document.querySelector('.cursor-dot');
     const ring = document.querySelector('.cursor-ring');
     const ringSize = 32;
-    let mx = 0, my = 0, ringX = 0, ringY = 0, hoverScale = 1;
+    let mx = 0, my = 0;
+    let lastX = 0, lastY = 0, lastTime = performance.now();
+    let speedScale = 1, targetSpeedScale = 1, hoverScale = 1;
+    let hasPointer = false;
 
     window.addEventListener('mousemove', (event) => {
+      const now = performance.now();
       mx = event.clientX;
       my = event.clientY;
+
+      if (hasPointer) {
+        const distance = Math.hypot(mx - lastX, my - lastY);
+        const elapsed = Math.max(now - lastTime, 16);
+        const velocity = distance / elapsed;
+        targetSpeedScale = 1 + Math.min(velocity * 0.28, 1.1);
+      }
+
+      lastX = mx; lastY = my; lastTime = now; hasPointer = true;
       dot.classList.add('is-visible');
       ring.classList.add('is-visible');
       dot.style.transform = `translate(${mx - 3}px, ${my - 3}px)`;
+      ring.style.transform = `translate(${mx - ringSize / 2}px, ${my - ringSize / 2}px) scale(${Math.max(speedScale, hoverScale)})`;
     });
     window.addEventListener('mouseleave', () => {
       dot.classList.remove('is-visible');
       ring.classList.remove('is-visible');
+      hasPointer = false;
+      targetSpeedScale = 1;
     });
-    document.querySelectorAll('a').forEach((element) => {
+    document.querySelectorAll('a, button, .download__card').forEach((element) => {
       element.addEventListener('mouseenter', () => { hoverScale = 60 / ringSize; });
       element.addEventListener('mouseleave', () => { hoverScale = 1; });
     });
-    function draw() {
-      ringX += (mx - ringX) * .16;
-      ringY += (my - ringY) * .16;
-      ring.style.transform = `translate(${ringX - ringSize / 2}px, ${ringY - ringSize / 2}px) scale(${hoverScale})`;
-      requestAnimationFrame(draw);
+    function tick() {
+      targetSpeedScale += (1 - targetSpeedScale) * 0.08;
+      speedScale += (targetSpeedScale - speedScale) * 0.2;
+      ring.style.transform = `translate(${mx - ringSize / 2}px, ${my - ringSize / 2}px) scale(${Math.max(speedScale, hoverScale)})`;
+      requestAnimationFrame(tick);
     }
-    draw();
+    requestAnimationFrame(tick);
   })();
 
   (async function () {
