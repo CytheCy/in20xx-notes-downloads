@@ -804,7 +804,7 @@
         <div class="download__platform-name">Windows</div>
         <div class="download__platform-meta">Windows 10 or later · 64-bit installer</div>
         <div class="download__actions" data-downloads="windows">
-          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.exe" download>
+          <a class="download__btn" href="/downloads/windows-x64.exe">
             <span>Download .exe</span>
             <span class="arrow"></span>
           </a>
@@ -815,11 +815,11 @@
         <div class="download__platform-name">macOS</div>
         <div class="download__platform-meta">macOS 12 Monterey or later · Intel or Apple silicon</div>
         <div class="download__actions" data-downloads="macos">
-          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.zip" download>
+          <a class="download__btn" href="/downloads/macos-x64.zip">
             <span>Download X64</span>
             <span class="arrow"></span>
           </a>
-          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-arm64.zip" download>
+          <a class="download__btn" href="/downloads/macos-arm64.zip">
             <span>Download Arm64</span>
             <span class="arrow"></span>
           </a>
@@ -830,15 +830,15 @@
         <div class="download__platform-name">Linux</div>
         <div class="download__platform-meta">64-bit · AppImage, Debian/Ubuntu, or Fedora/RHEL</div>
         <div class="download__actions" data-downloads="linux">
-          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-amd64.deb" download>
+          <a class="download__btn" href="/downloads/linux-amd64.deb">
             <span>Download .deb</span>
             <span class="arrow"></span>
           </a>
-          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.rpm" download>
+          <a class="download__btn" href="/downloads/linux-x86_64.rpm">
             <span>Download .rpm</span>
             <span class="arrow"></span>
           </a>
-          <a class="download__btn" href="https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.appimage" download>
+          <a class="download__btn" href="/downloads/linux-x86_64.appimage">
             <span>Download AppImage</span>
             <span class="arrow"></span>
           </a>
@@ -1010,46 +1010,40 @@
       {
         platform: 'windows',
         extension: '.exe',
-        preferredName: 'In20xx-Notes-1.0.0-x64.exe',
         label: 'Download .exe',
-        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.exe'
+        fallbackHref: '/downloads/windows-x64.exe'
       },
       {
         platform: 'macos',
         extension: '.zip',
-        preferredName: 'In20xx-Notes-1.0.0-x64.zip',
         arch: 'x64',
         label: 'Download X64',
-        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x64.zip'
+        fallbackHref: '/downloads/macos-x64.zip'
       },
       {
         platform: 'macos',
         extension: '.zip',
-        preferredName: 'In20xx-Notes-1.0.0-arm64.zip',
         arch: 'arm64',
         label: 'Download Arm64',
-        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-arm64.zip'
+        fallbackHref: '/downloads/macos-arm64.zip'
       },
       {
         platform: 'linux',
         extension: '.deb',
-        preferredName: 'In20xx-Notes-1.0.0-amd64.deb',
         label: 'Download .deb',
-        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-amd64.deb'
+        fallbackHref: '/downloads/linux-amd64.deb'
       },
       {
         platform: 'linux',
         extension: '.rpm',
-        preferredName: 'In20xx-Notes-1.0.0-x86_64.rpm',
         label: 'Download .rpm',
-        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.rpm'
+        fallbackHref: '/downloads/linux-x86_64.rpm'
       },
       {
         platform: 'linux',
         extension: '.appimage',
-        preferredName: 'In20xx-Notes-1.0.0-x86_64.appimage',
         label: 'Download AppImage',
-        fallbackHref: 'https://github.com/CytheCy/in20xx-notes-downloads/releases/download/v1.0.0/In20xx-Notes-1.0.0-x86_64.appimage'
+        fallbackHref: '/downloads/linux-x86_64.appimage'
       }
     ];
 
@@ -1090,8 +1084,7 @@
         return extensions.findIndex(extension => a.name.toLowerCase().endsWith(extension)) -
           extensions.findIndex(extension => b.name.toLowerCase().endsWith(extension));
       });
-      if (!definition.preferredName) return candidates[0];
-      return candidates.find(asset => asset.name === definition.preferredName) || candidates[0];
+      return candidates[0];
     }
 
     function makeButton(asset, label, href) {
@@ -1102,7 +1095,6 @@
 
       link.className = 'download__btn';
       link.href = href || asset.browser_download_url;
-      link.setAttribute('download', '');
       if (asset) link.setAttribute('aria-label', `${label}, ${asset.name}`);
       text.textContent = label;
       size.className = 'size';
@@ -1125,7 +1117,7 @@
 
     async function loadRelease() {
       try {
-        const response = await fetch(`https://api.github.com/repos/${repository}/releases/latest`, {
+        const response = await fetch('/api/releases/latest', {
           headers: { Accept: 'application/vnd.github+json' }
         });
         if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
