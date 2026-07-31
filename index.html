@@ -428,6 +428,24 @@
     color: var(--text-mute);
     max-width: 28rem;
   }
+  .download__intro .download__guide {
+    display: inline-flex; align-items: center; gap: 0.8rem;
+    margin-top: 1.5rem;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--text);
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text);
+    transition: background 0.4s var(--ease-quiet), color 0.4s var(--ease-quiet);
+  }
+  .download__intro .download__guide:hover {
+    background: var(--text);
+    color: var(--bg);
+  }
+  .download__guide .arrow {
+    display: inline-block;
+    transition: transform 0.4s var(--ease-quiet);
+  }
+  .download__guide:hover .arrow { transform: translateX(0.25rem); }
 
   .download__grid {
     display: grid;
@@ -616,6 +634,7 @@
     <div class="nav__links">
       <a href="#appearance">Screenshots</a>
       <a href="#download">Download</a>
+      <a href="install.html">Install</a>
     </div>
   </nav>
 
@@ -795,6 +814,10 @@
       <p class="download__intro" aria-live="polite">
         <span data-release-summary>Checking GitHub for the latest release…</span>
         No installer telemetry, no account required. Pick your platform and the file lands directly.
+        <a class="download__guide" href="install.html">
+          <span>Install instructions</span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
       </p>
     </div>
 
@@ -869,7 +892,7 @@
       <span class="meta">A quiet place for notes</span>
     </div>
     <div class="footer__links">
-      <a href="#">Documentation</a>
+      <a href="install.html">Install instructions</a>
       <a href="https://github.com/CytheCy/In20xx_Notes/releases/latest">Changelog</a>
       <a href="https://github.com/CytheCy/In20xx_Notes">Source code</a>
       <a href="#">Contact</a>
